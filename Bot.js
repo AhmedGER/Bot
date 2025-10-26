@@ -19,7 +19,7 @@ const BOT_CONFIG = {
 };
 
 // Gemini AI (FREE Forever!)
-const genAI = new GoogleGenerativeAI('YOUR_API_KEY_HERE');
+const genAI = new GoogleGenerativeAI('AIzaSyCMRCQ_HJ_s-KV0XgdkSoLbanHtw3J9NE4');
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 // Advanced connection manager
