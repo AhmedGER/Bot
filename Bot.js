@@ -1,146 +1,144 @@
-import mineflayer from 'mineflayer';
-import { pathfinder, Movements, goals } from 'mineflayer-pathfinder';
-import collect from 'mineflayer-collectblock';
-import pvp from 'mineflayer-pvp';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import Vec3 from 'vec3';
+const mineflayer = require('mineflayer');
+const { ping } = require('minecraft-protocol');
 
-const GEMINI_KEY = 'AIzaSyCMRCQ_HJ_s-KV0XgdkSoLbanHtw3J9NE4';
-const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+// إعدادات السيرفر
+const SERVER_HOST = '229.ip.ply.gg';
+const SERVER_PORT = 21477;
+const BOT_USERNAME = 'BotMC'; // غير هذا الاسم
+const PASSWORD = 'fode123';
 
-const PASSWORD = 'fode123';               // كلمة السر التي ستسجل بها
-const SERVER_TYPE = 'offline';            // 'offline' أو 'premium'
+let bot = null;
+let isRegistered = false;
 
-const bot = mineflayer.createBot({
-  host: 'localhost',
-  port: 25565,
-  username: 'GeminiBot',
-  version: '1.21.4',
-  auth: SERVER_TYPE                     // microsoft / mojang / offline
-});
-
-bot.loadPlugin(pathfinder);
-bot.loadPlugin(collect);
-bot.loadPlugin(pvp);
-
-/* ============== 1. Registration Layer ============== */
-let registered = false;
-bot.once('spawn', async () => {
-  console.log('[Bot] Spawned – waiting 2 s then register...');
-  await sleep(2000);
-  bot.chat(`/register ${PASSWORD} ${PASSWORD}`);
-  console.log('[Bot] Sent /register command');
-});
-
-bot.on('chat', (username, message) => {
-  if (username === bot.username) return;
-  // AuthMe success patterns
-  if (/registered|logged in|already logged/i.test(message)) {
-    registered = true;
-    console.log('[Bot] Registration complete – now listening to orders');
-    bot.chat('Hello! I am ready – talk to me.');
-  }
-  // if server says “already registered” try login
-  if (/already registered|use \/login/i.test(message)) {
-    bot.chat(`/login ${PASSWORD}`);
-    console.log('[Bot] Sent /login command');
-  }
-  // only AFTER login → process player orders
-  if (registered) handleOrder(username, message);
-});
-
-/* ============== 2. Gemini Order Handler ============== */
-async function handleOrder(username, msg) {
-  const prompt = `
-You are an expert Minecraft AI that can do absolutely everything in the game.
-Player ${username} says: "${msg}"
-Reply with a short sentence, then add a newline starting with ACTION: and a single command.
-Available commands (you can use ANY):
-goToPlayer(name), followPlayer(name), attack(name), collectNearest(block), build(structure), mineDiamonds(n), stripMine(direction,blocks), digDown(n), digForward(n), placeBlock(block), equip(tool), eat, sleep, wake, look(x,y,z), craft(item,amount), drop(item,amount), fish, milk, shear, trade(name,item), replant(crop), farmCrop(crop), killMobs(radius), smelt(item,amount), brew(potion), enchant(item,ench), repair(item), organizeInventory, dumpTrash, eChestStore, eChestTake, goNether(), goOverworld(), goEnd(), pearl(x,y,z), anchor(x,y,z,charges), boat(), elytra(), flyTo(x,y,z), land(), firework(), ride(entity), strider(), feed(entity), tame(entity), leash(entity), unleash(entity), sit(), stand(), openDoor(), closeDoor(), lever(state), button(), dispenserFill(items), dropperClock(period), observerLine(), pistonPush(), slimeFly(), tntDupe(), witherBuild(), dragonFight(), guardianFarm(), ironFarm(), goldFarm(), raidFarm(), slimeFarm(), witchFarm(), villagerZombieCure(), piglinBarter(), enderPearlStasis(), bedExplode(), anchorExplode(), crystalPvp(), bowBoost(), snowKnock(), fishingRodPull(), autoFarm(), autoFish(), autoMine(), autoBuild(), autoCraft(), autoSmelt(), autoBrew(), autoEnchant(), autoRepair(), autoTrade(), autoBarter(), organizeChest(), sortInventory(), dumpJunk(), eSort(), antiAFK(), rainbowBeacon(), mapArt(), signWriter(), bookWriter(), noteBlockSong(), jukeboxPlay(), fireworkShow(), bannerCreator(), loomPattern(), carpetDupe(), railDupe(), gravityDupe(), zeroTickFarm(), raidFarm(), endGateway(), portalLink(), strongLocate(), mansionLocate(), monumentLocate(), outpostLocate(), cityLocate(), fortressLocate(), bastionLocate(), endCityLocate(), ancientLocate(), shipwreckLocate(), buriedLocate(), ruinLocate(), trailLocate(), villageLocate(), mineshaftLocate(), dungeonLocate(), spawnerLocate(), slimeChunk(), biomeLocate(), temperatureCheck(), weatherCheck(), moonPhase(), lightLevelCheck(), spawnProof(), hostileSpawn(), passiveSpawn(), ironGolemSpawn(), snowGolemSpawn(), witherSpawn(), enderDragonSpawn(), raidSpawn(), catSpawn(), dogSpawn(), foxSpawn(), pandaSpawn(), parrotSpawn(), dolphinSpawn(), turtleSpawn(), fishSpawn(), squidSpawn(), glowSquidSpawn(), axolotlSpawn(), frogSpawn(), tadpoleSpawn(), allaySpawn(), wardenSpawn(), camelSpawn(), snifferSpawn(), traderSpawn(), wanderingSpawn(), pillagerSpawn(), evokerSpawn(), vindicatorSpawn(), illusionerSpawn(), vexSpawn(), ravagerSpawn(), witchSpawn(), guardianSpawn(), elderGuardianSpawn(), blazeSpawn(), magmaCubeSpawn(), piglinSpawn(), piglinBruteSpawn(), zombifiedPiglinSpawn(), hoglinSpawn(), zoglinSpawn(), striderSpawn(), endermanSpawn(), endermiteSpawn(), shulkerSpawn(), ghastSpawn(), slimeSpawn(), silverfishSpawn(), caveSpiderSpawn(), spiderSpawn(), skeletonSpawn(), straySpawn(), witherSkeletonSpawn(), zombieSpawn(), huskSpawn(), drownedSpawn(), zombieVillagerSpawn(), creeperSpawn(), phantomSpawn(), beeSpawn(), enderCrystalSpawn(), armorStandSpawn(), itemFrameSpawn(), paintingSpawn(), leashKnotSpawn(), boatSpawn(), minecartSpawn(), tntSpawn(), fallingBlockSpawn(), fireballSpawn(), dragonFireballSpawn(), witherSkullSpawn(), shulkerBulletSpawn(), llamaSpitSpawn(), experienceOrbSpawn(), eyeOfEnderSpawn(), fireworkSpawn(), fishingFloatSpawn(), potionSpawn(), experienceBottleSpawn(), arrowSpawn(), spectralArrowSpawn(), tippedArrowSpawn(), snowballSpawn(), eggSpawn(), enderPearlSpawn(), bottleEnchantingSpawn(), thrownTridentSpawn(), fireworkRocketSpawn(), leashKnotSpawn(), lightningBoltSpawn(), weatherSpawn(), endGatewaySpawn(), portalSpawn(), dragonRespawn(), raidWaveSpawn(), patrolSpawn(), catMorningGiftSpawn(), foxSweetBerrySpawn(), turtleEggHatchSpawn(), frogEatSlimeSpawn(), snifferDigSpawn(), camelDashSpawn(), allayItemThrowSpawn(), wardenEmergenceSpawn(), wardenDigSpawn(), wardenRoarSpawn()
-`.trim();
-
-  const reply = await model.generateContent(prompt);
-  const [text, actionLine] = reply.split('ACTION:');
-  bot.chat(text.replace(/\n/g, ' '));
-  if (actionLine) await execute(actionLine.trim());
+// دالة لفحص ping والاعبين
+async function checkServerStatus() {
+    try {
+        console.log('🔍 جاري فحص حالة السيرفر...');
+        
+        const status = await ping({
+            host: SERVER_HOST,
+            port: SERVER_PORT
+        });
+        
+        console.log('✅ السيرفر متاح!');
+        console.log(`📊 Ping: ${status.latency}ms`);
+        console.log(`👥 اللاعبين: ${status.players.online}/${status.players.max}`);
+        console.log(`📝 الإصدار: ${status.version.name}`);
+        console.log('-------------------');
+        
+        return true;
+    } catch (error) {
+        console.log('❌ السيرفر غير متاح، سأحاول مرة أخرى...');
+        return false;
+    }
 }
 
-/* ============== 3. Tiny Executor (expandable) ============== */
-async function execute(cmd) {
-  const a = cmd.split(/[(),]/).map(s => s.trim());
-  switch (a[0]) {
-    case 'goToPlayer':
-      return bot.pathfinder.setGoal(new goals.GoalFollow(bot.players[a[1]].entity, 1));
-    case 'mineDiamonds':
-      return mineDiamonds(Number(a[1] || 10));
-    case 'autoFarm':
-      return autoFarm();
-    case 'autoFish':
-      return autoFish();
-    case 'autoMine':
-      return stripMine('x', Number(a[1] || 200));
-    case 'build':
-      return buildSchem(a[1]);   // schematic file name
-    case 'stop':
-      return bot.pathfinder.stop();
-    default:
-      bot.chat('I know that command but the dev hasn\'t wired it yet.');
-  }
-}
-
-/* ============== 4. Example Skills ============== */
-async function mineDiamonds(amount) {
-  const collect = bot.collectBlock;
-  let mined = 0;
-  while (mined < amount) {
-    const target = bot.findBlock({
-      matching: ['diamond_ore', 'deepslate_diamond_ore'],
-      maxDistance: 64, count: 1
+// دالة إنشاء البوت
+function createBot() {
+    bot = mineflayer.createBot({
+        host: SERVER_HOST,
+        port: SERVER_PORT,
+        username: BOT_USERNAME,
+        version: false, // يكتشف الإصدار تلقائياً
+        hideErrors: false,
+        checkTimeoutInterval: 60000,
+        loadInternalPlugins: true
     });
-    if (!target) { bot.chat('No diamond ore visible.'); break; }
-    await collect.collect(target);
-    mined++;
-  }
-  bot.chat(`Done, collected ${mined} diamonds.`);
+
+    // عند الاتصال بالسيرفر
+    bot.once('spawn', () => {
+        console.log('✅ تم الدخول للسيرفر بنجاح!');
+        console.log(`📍 الموقع: X=${bot.entity.position.x.toFixed(2)}, Y=${bot.entity.position.y.toFixed(2)}, Z=${bot.entity.position.z.toFixed(2)}`);
+        console.log('⏳ جاري تحميل السيرفر ببطء...');
+        
+        // إذا كانت أول مرة، نسجل
+        if (!isRegistered) {
+            setTimeout(() => {
+                console.log('📝 جاري التسجيل...');
+                bot.chat(`/register ${PASSWORD} ${PASSWORD}`);
+                isRegistered = true;
+            }, 2000);
+        }
+    });
+
+    // استقبال الرسائل من السيرفر
+    bot.on('message', (message) => {
+        const msg = message.toString();
+        console.log(`💬 السيرفر: ${msg}`);
+        
+        // التحقق من رسائل التسجيل الناجح
+        if (msg.includes('registered') || msg.includes('سجلت') || msg.includes('success')) {
+            console.log('✅ تم التسجيل بنجاح!');
+        }
+    });
+
+    // عند الطرد من السيرفر
+    bot.on('kicked', (reason) => {
+        console.log('⚠️ تم طردي من السيرفر!');
+        console.log(`السبب: ${reason}`);
+        console.log('🔄 سأحاول الاتصال مرة أخرى بعد 3 ثواني...');
+        setTimeout(attemptConnection, 3000);
+    });
+
+    // عند حدوث خطأ
+    bot.on('error', (err) => {
+        console.log('❌ حدث خطأ:', err.message);
+    });
+
+    // عند انقطاع الاتصال
+    bot.on('end', (reason) => {
+        console.log('⚠️ انقطع الاتصال:', reason);
+        console.log('🔄 سأحاول الاتصال مرة أخرى بعد 3 ثواني...');
+        setTimeout(attemptConnection, 3000);
+    });
+
+    // تحميل الـ chunks ببطء
+    bot.on('chunkColumnLoad', (pos) => {
+        console.log(`📦 تحميل Chunk: X=${pos.x}, Z=${pos.z}`);
+    });
+
+    // عند اكتمال التحميل
+    let chunksLoaded = 0;
+    bot.on('chunkColumnLoad', () => {
+        chunksLoaded++;
+        if (chunksLoaded % 10 === 0) {
+            console.log(`📊 تم تحميل ${chunksLoaded} chunk...`);
+        }
+    });
+
+    // معلومات الصحة والجوع
+    bot.on('health', () => {
+        console.log(`❤️ الصحة: ${bot.health.toFixed(1)}/20 | 🍖 الجوع: ${bot.food.toFixed(1)}/20`);
+    });
 }
 
-async function stripMine(dir, blocks) {
-  const vec = { x: 0, y: 0, z: 0 };
-  vec[dir] = 1;
-  for (let i = 0; i < blocks; i++) {
-    await bot.pathfinder.goto(new goals.GoalBlock(
-      Math.floor(bot.entity.position.x) + vec.x * i,
-      Math.floor(bot.entity.position.y),
-      Math.floor(bot.entity.position.z) + vec.z * i
-    ));
-    await digForward(1);
-  }
+// محاولة الاتصال بالسيرفر
+async function attemptConnection() {
+    const serverAvailable = await checkServerStatus();
+    
+    if (serverAvailable) {
+        console.log('⏳ انتظار 3 ثواني قبل الدخول...');
+        setTimeout(() => {
+            console.log('🚀 جاري الاتصال بالسيرفر...');
+            createBot();
+        }, 3000);
+    } else {
+        console.log('⏳ سأحاول مرة أخرى بعد 3 ثواني...');
+        setTimeout(attemptConnection, 3000);
+    }
 }
 
-async function digForward(n) {
-  for (let i = 0; i < n; i++) {
-    const target = bot.blockAt(bot.entity.position.offset(1, 0, 0));
-    if (target && target.name !== 'air') await bot.dig(target);
-    await bot.waitForTicks(5);
-  }
-}
+// بدء البوت
+console.log('🤖 بوت ماين كرافت يستعد للعمل...');
+console.log('📡 السيرفر: ' + SERVER_HOST);
+console.log('-------------------');
+attemptConnection();
 
-async function autoFish() {
-  bot.activateItem();
-  bot.on('playerCollect', (collector) => {
-    if (collector === bot.entity) bot.chat('Fish caught!');
-  });
-}
-
-async function buildSchem(name) {
-  bot.chat(`Building ${name} - not implemented yet`);
-  // wire mineflayer-schematic or prismarine-schematic here
-}
-
-/* ============== 5. Utils ============== */
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-/* ============== 6. Safety ============== */
-bot.on('death', () => bot.chat('I died, respawning...'));
-bot.on('error', err => console.log('Bot error:', err));
+// معالجة إيقاف البرنامج
+process.on('SIGINT', () => {
+    console.log('\n👋 جاري إيقاف البوت...');
+    if (bot) {
+        bot.quit();
+    }
+    process.exit();
+});
