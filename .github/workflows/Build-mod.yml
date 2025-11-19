@@ -201,7 +201,6 @@ jobs:
 
         tasks.withType(JavaCompile).configureEach {
             it.options.encoding = "UTF-8"
-            it.options.release = 8
         }
 
         java {
@@ -252,10 +251,9 @@ jobs:
         run/
         EOF
     
-    # 13. إنشاء Gradle Wrapper باستخدام Gradle المثبت
-    - name: Setup Gradle Wrapper
-      run: |
-        gradle wrapper --gradle-version 6.9
+    # 13. إنشاء Gradle Wrapper
+    - name: Create Gradle Wrapper files
+      run: gradle wrapper --gradle-version 6.9
     
     # 14. إعطاء صلاحيات لـ gradlew
     - name: Grant execute permission
