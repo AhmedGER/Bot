@@ -267,7 +267,7 @@ jobs:
     
     # 17. رفع المود كـ artifact
     - name: Upload Mod JAR
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: extended-reach-mod-v1.0.0
         path: build/libs/*.jar
