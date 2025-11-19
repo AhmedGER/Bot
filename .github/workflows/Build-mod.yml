@@ -171,13 +171,19 @@ jobs:
 
         repositories {
             maven { url 'https://maven.fabricmc.net/' }
+            maven {
+                url 'https://www.cursemaven.com'
+                content {
+                    includeGroup "curse.maven"
+                }
+            }
         }
 
         dependencies {
             minecraft "com.mojang:minecraft:1.16.5"
             mappings "net.fabricmc:yarn:1.16.5+build.10:v2"
             modImplementation "net.fabricmc:fabric-loader:0.11.3"
-            modImplementation "net.fabricmc:fabric-api:0.42.0+1.16"
+            modImplementation "curse.maven:fabric-api-306612:3516413"
         }
 
         processResources {
