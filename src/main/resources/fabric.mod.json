@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "extendedreach",
+  "version": "1.0.0",
+  "name": "Extended Reach",
+  "description": "Increases attack and block reach distance",
+  "authors": ["AutoBuilder"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.example.extendedreach.ExtendedReachMod"]
+  },
+  "mixins": ["extendedreach.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.11.0",
+    "fabric": "*",
+    "minecraft": "1.16.5"
+  }
+}
