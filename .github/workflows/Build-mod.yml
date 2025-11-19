@@ -27,6 +27,12 @@ jobs:
         java-version: '8'
         distribution: 'temurin'
     
+    # 2.5. Setup Gradle
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: 6.9
+    
     # 3. إنشاء هيكل المشروع
     - name: Create project structure
       run: |
@@ -246,13 +252,10 @@ jobs:
         run/
         EOF
     
-    # 13. تنزيل Gradle Wrapper
-    - name: Download Gradle Wrapper
+    # 13. إنشاء Gradle Wrapper باستخدام Gradle المثبت
+    - name: Setup Gradle Wrapper
       run: |
-        curl -L https://services.gradle.org/distributions/gradle-6.9-bin.zip -o gradle.zip
-        unzip -q gradle.zip
-        ./gradle-6.9/bin/gradle wrapper
-        rm -rf gradle-6.9 gradle.zip
+        gradle wrapper --gradle-version 6.9
     
     # 14. إعطاء صلاحيات لـ gradlew
     - name: Grant execute permission
