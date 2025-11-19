@@ -1,0 +1,273 @@
+# .github/workflows/build-mod.yml
+name: Build Minecraft Mod from Scratch
+
+on:
+  workflow_dispatch: # تشغيل يدوي بس
+  push:
+    branches: [ main, master ]
+
+jobs:
+  setup-and-build:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+    # 1. جلب الريبو
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.PAT }}
+    
+    # 2. تثبيت Java 8
+    - name: Set up JDK 8
+      uses: actions/setup-java@v3
+      with:
+        java-version: '8'
+        distribution: 'temurin'
+    
+    # 3. إنشاء هيكل المشروع
+    - name: Create project structure
+      run: |
+        mkdir -p src/main/java/com/example/extendedreach/mixin
+        mkdir -p src/main/resources
+        mkdir -p gradle/wrapper
+    
+    # 4. كتابة ملف ExtendedReachMod.java
+    - name: Create ExtendedReachMod.java
+      run: |
+        cat > src/main/java/com/example/extendedreach/ExtendedReachMod.java << 'EOF'
+        package com.example.extendedreach;
+
+        import net.fabricmc.api.ModInitializer;
+        import org.slf4j.Logger;
+        import org.slf4j.LoggerFactory;
+
+        public class ExtendedReachMod implements ModInitializer {
+            public static final String MOD_ID = "extendedreach";
+            public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+            
+            public static final float EXTRA_REACH = 3.0f;
+            
+            @Override
+            public void onInitialize() {
+                LOGGER.info("Extended Reach Mod loaded! Extra reach: " + EXTRA_REACH);
+            }
+        }
+        EOF
+    
+    # 5. كتابة ملف ClientPlayerInteractionManagerMixin.java
+    - name: Create ClientPlayerInteractionManagerMixin.java
+      run: |
+        cat > src/main/java/com/example/extendedreach/mixin/ClientPlayerInteractionManagerMixin.java << 'EOF'
+        package com.example.extendedreach.mixin;
+
+        import com.example.extendedreach.ExtendedReachMod;
+        import net.minecraft.client.network.ClientPlayerInteractionManager;
+        import org.spongepowered.asm.mixin.Mixin;
+        import org.spongepowered.asm.mixin.injection.At;
+        import org.spongepowered.asm.mixin.injection.Inject;
+        import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+        @Mixin(ClientPlayerInteractionManager.class)
+        public class ClientPlayerInteractionManagerMixin {
+            
+            @Inject(method = "getReachDistance", at = @At("RETURN"), cancellable = true)
+            private void extendReachDistance(CallbackInfoReturnable<Float> cir) {
+                float originalReach = cir.getReturnValue();
+                cir.setReturnValue(originalReach + ExtendedReachMod.EXTRA_REACH);
+            }
+        }
+        EOF
+    
+    # 6. كتابة ملف ServerPlayNetworkHandlerMixin.java
+    - name: Create ServerPlayNetworkHandlerMixin.java
+      run: |
+        cat > src/main/java/com/example/extendedreach/mixin/ServerPlayNetworkHandlerMixin.java << 'EOF'
+        package com.example.extendedreach.mixin;
+
+        import com.example.extendedreach.ExtendedReachMod;
+        import net.minecraft.server.network.ServerPlayNetworkHandler;
+        import org.spongepowered.asm.mixin.Mixin;
+        import org.spongepowered.asm.mixin.injection.Constant;
+        import org.spongepowered.asm.mixin.injection.ModifyConstant;
+
+        @Mixin(ServerPlayNetworkHandler.class)
+        public class ServerPlayNetworkHandlerMixin {
+            
+            @ModifyConstant(method = "onPlayerInteractBlock", constant = @Constant(doubleValue = 36.0))
+            private double modifyBlockReachServer(double original) {
+                double newReach = 6.0 + ExtendedReachMod.EXTRA_REACH;
+                return newReach * newReach;
+            }
+            
+            @ModifyConstant(method = "onPlayerInteractEntity", constant = @Constant(doubleValue = 36.0))
+            private double modifyEntityReachServer(double original) {
+                double newReach = 6.0 + ExtendedReachMod.EXTRA_REACH;
+                return newReach * newReach;
+            }
+        }
+        EOF
+    
+    # 7. كتابة fabric.mod.json
+    - name: Create fabric.mod.json
+      run: |
+        cat > src/main/resources/fabric.mod.json << 'EOF'
+        {
+          "schemaVersion": 1,
+          "id": "extendedreach",
+          "version": "1.0.0",
+          "name": "Extended Reach",
+          "description": "Increases attack and block reach distance",
+          "authors": ["AutoBuilder"],
+          "license": "MIT",
+          "environment": "*",
+          "entrypoints": {
+            "main": ["com.example.extendedreach.ExtendedReachMod"]
+          },
+          "mixins": ["extendedreach.mixins.json"],
+          "depends": {
+            "fabricloader": ">=0.11.0",
+            "fabric": "*",
+            "minecraft": "1.16.5"
+          }
+        }
+        EOF
+    
+    # 8. كتابة extendedreach.mixins.json
+    - name: Create extendedreach.mixins.json
+      run: |
+        cat > src/main/resources/extendedreach.mixins.json << 'EOF'
+        {
+          "required": true,
+          "minVersion": "0.8",
+          "package": "com.example.extendedreach.mixin",
+          "compatibilityLevel": "JAVA_8",
+          "mixins": [],
+          "client": ["ClientPlayerInteractionManagerMixin"],
+          "server": ["ServerPlayNetworkHandlerMixin"],
+          "injectors": {
+            "defaultRequire": 1
+          }
+        }
+        EOF
+    
+    # 9. كتابة build.gradle
+    - name: Create build.gradle
+      run: |
+        cat > build.gradle << 'EOF'
+        plugins {
+            id 'fabric-loom' version '0.7-SNAPSHOT'
+            id 'maven-publish'
+        }
+
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+
+        archivesBaseName = "extendedreach"
+        version = "1.0.0"
+        group = "com.example"
+
+        repositories {
+            maven { url 'https://maven.fabricmc.net/' }
+        }
+
+        dependencies {
+            minecraft "com.mojang:minecraft:1.16.5"
+            mappings "net.fabricmc:yarn:1.16.5+build.10:v2"
+            modImplementation "net.fabricmc:fabric-loader:0.11.3"
+            modImplementation "net.fabricmc:fabric-api:0.34.2+1.16"
+        }
+
+        processResources {
+            inputs.property "version", project.version
+            filesMatching("fabric.mod.json") {
+                expand "version": project.version
+            }
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            it.options.encoding = "UTF-8"
+            it.options.release = 8
+        }
+
+        java {
+            withSourcesJar()
+        }
+
+        jar {
+            from("LICENSE") {
+                rename { "${it}_${project.archivesBaseName}"}
+            }
+        }
+        EOF
+    
+    # 10. كتابة gradle.properties
+    - name: Create gradle.properties
+      run: |
+        cat > gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx2G
+        EOF
+    
+    # 11. كتابة settings.gradle
+    - name: Create settings.gradle
+      run: |
+        cat > settings.gradle << 'EOF'
+        pluginManagement {
+            repositories {
+                maven {
+                    name = 'Fabric'
+                    url = 'https://maven.fabricmc.net/'
+                }
+                gradlePluginPortal()
+            }
+        }
+        
+        rootProject.name = 'extendedreach'
+        EOF
+    
+    # 12. كتابة .gitignore
+    - name: Create .gitignore
+      run: |
+        cat > .gitignore << 'EOF'
+        .gradle/
+        build/
+        out/
+        .idea/
+        *.iml
+        .vscode/
+        run/
+        EOF
+    
+    # 13. تنزيل Gradle Wrapper
+    - name: Download Gradle Wrapper
+      run: |
+        curl -L https://services.gradle.org/distributions/gradle-6.9-bin.zip -o gradle.zip
+        unzip -q gradle.zip
+        ./gradle-6.9/bin/gradle wrapper
+        rm -rf gradle-6.9 gradle.zip
+    
+    # 14. إعطاء صلاحيات لـ gradlew
+    - name: Grant execute permission
+      run: chmod +x gradlew
+    
+    # 15. Commit الملفات الجديدة
+    - name: Commit project files
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        git add .
+        git diff --staged --quiet || git commit -m "Auto-generated Minecraft mod project files"
+        git push
+    
+    # 16. بناء المود
+    - name: Build mod
+      run: ./gradlew build
+    
+    # 17. رفع المود كـ artifact
+    - name: Upload Mod JAR
+      uses: actions/upload-artifact@v3
+      with:
+        name: extended-reach-mod-v1.0.0
+        path: build/libs/*.jar
