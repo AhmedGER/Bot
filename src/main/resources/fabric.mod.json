@@ -3,7 +3,7 @@
   "id": "extendedreach",
   "version": "1.0.0",
   "name": "Extended Reach",
-  "description": "Increases attack and block reach distance",
+  "description": "Increases attack and block reach distance (Client + Server)",
   "authors": ["AutoBuilder"],
   "license": "MIT",
   "environment": "*",

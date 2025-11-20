@@ -13,6 +13,6 @@ public class ClientPlayerInteractionManagerMixin {
     @Inject(method = "getReachDistance", at = @At("RETURN"), cancellable = true)
     private void extendReachDistance(CallbackInfoReturnable<Float> cir) {
         float originalReach = cir.getReturnValue();
-        cir.setReturnValue(originalReach + ExtendedReachMod.EXTRA_REACH);
+        cir.setReturnValue((float)(originalReach + ExtendedReachMod.EXTRA_REACH));
     }
 }

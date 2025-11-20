@@ -7,7 +7,7 @@ sourceCompatibility = JavaVersion.VERSION_1_8
 targetCompatibility = JavaVersion.VERSION_1_8
 
 archivesBaseName = "extendedreach"
-version = "1.0.0"
+version = "1.0.1"
 group = "com.example"
 
 repositories {
