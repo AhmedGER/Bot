@@ -2,7 +2,7 @@
 name: Build Minecraft Mod from Scratch
 
 on:
-  workflow_dispatch: # تشغيل يدوي بس
+  workflow_dispatch:
   push:
     branches: [ main, master ]
 
@@ -14,33 +14,28 @@ jobs:
       contents: write
     
     steps:
-    # 1. جلب الريبو
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
         token: ${{ secrets.PAT }}
     
-    # 2. تثبيت Java 8
     - name: Set up JDK 8
       uses: actions/setup-java@v3
       with:
         java-version: '8'
         distribution: 'temurin'
     
-    # 2.5. Setup Gradle
     - name: Setup Gradle
       uses: gradle/gradle-build-action@v2
       with:
         gradle-version: 6.9
     
-    # 3. إنشاء هيكل المشروع
     - name: Create project structure
       run: |
         mkdir -p src/main/java/com/example/extendedreach/mixin
         mkdir -p src/main/resources
         mkdir -p gradle/wrapper
     
-    # 4. كتابة ملف ExtendedReachMod.java
     - name: Create ExtendedReachMod.java
       run: |
         cat > src/main/java/com/example/extendedreach/ExtendedReachMod.java << 'EOF'
@@ -50,7 +45,7 @@ jobs:
 
         public class ExtendedReachMod implements ModInitializer {
             public static final String MOD_ID = "extendedreach";
-            public static final float EXTRA_REACH = 3.0f;
+            public static final double EXTRA_REACH = 3.0;
             
             @Override
             public void onInitialize() {
@@ -59,7 +54,6 @@ jobs:
         }
         EOF
     
-    # 5. كتابة ملف ClientPlayerInteractionManagerMixin.java
     - name: Create ClientPlayerInteractionManagerMixin.java
       run: |
         cat > src/main/java/com/example/extendedreach/mixin/ClientPlayerInteractionManagerMixin.java << 'EOF'
@@ -78,13 +72,12 @@ jobs:
             @Inject(method = "getReachDistance", at = @At("RETURN"), cancellable = true)
             private void extendReachDistance(CallbackInfoReturnable<Float> cir) {
                 float originalReach = cir.getReturnValue();
-                cir.setReturnValue(originalReach + ExtendedReachMod.EXTRA_REACH);
+                cir.setReturnValue((float)(originalReach + ExtendedReachMod.EXTRA_REACH));
             }
         }
         EOF
     
-    # 6. كتابة ملف ServerPlayNetworkHandlerMixin.java
-    - name: Create ServerPlayNetworkHandlerMixin.java
+    - name: Create ServerPlayNetworkHandlerMixin.java  
       run: |
         cat > src/main/java/com/example/extendedreach/mixin/ServerPlayNetworkHandlerMixin.java << 'EOF'
         package com.example.extendedreach.mixin;
@@ -98,21 +91,29 @@ jobs:
         @Mixin(ServerPlayNetworkHandler.class)
         public class ServerPlayNetworkHandlerMixin {
             
-            @ModifyConstant(method = "onPlayerInteractBlock", constant = @Constant(doubleValue = 36.0))
-            private double modifyBlockReachServer(double original) {
+            // تعديل المسافة المسموحة للبلوكات - الرقم 36.0 = 6*6 (squared)
+            @ModifyConstant(method = "onPlayerInteractBlock", constant = @Constant(doubleValue = 36.0), require = 0)
+            private double extendBlockReach(double original) {
                 double newReach = 6.0 + ExtendedReachMod.EXTRA_REACH;
                 return newReach * newReach;
             }
             
-            @ModifyConstant(method = "onPlayerInteractEntity", constant = @Constant(doubleValue = 36.0))
-            private double modifyEntityReachServer(double original) {
+            // تعديل المسافة المسموحة للكيانات
+            @ModifyConstant(method = "onPlayerInteractEntity", constant = @Constant(doubleValue = 36.0), require = 0)
+            private double extendEntityReach(double original) {
                 double newReach = 6.0 + ExtendedReachMod.EXTRA_REACH;
+                return newReach * newReach;
+            }
+            
+            // تعديل المسافة المسموحة لضرب الكيانات
+            @ModifyConstant(method = "onPlayerInteractEntity", constant = @Constant(doubleValue = 9.0), require = 0)
+            private double extendAttackReach(double original) {
+                double newReach = 3.0 + ExtendedReachMod.EXTRA_REACH;
                 return newReach * newReach;
             }
         }
         EOF
     
-    # 7. كتابة fabric.mod.json
     - name: Create fabric.mod.json
       run: |
         cat > src/main/resources/fabric.mod.json << 'EOF'
@@ -121,7 +122,7 @@ jobs:
           "id": "extendedreach",
           "version": "1.0.0",
           "name": "Extended Reach",
-          "description": "Increases attack and block reach distance",
+          "description": "Increases attack and block reach distance (Client + Server)",
           "authors": ["AutoBuilder"],
           "license": "MIT",
           "environment": "*",
@@ -137,7 +138,6 @@ jobs:
         }
         EOF
     
-    # 8. كتابة extendedreach.mixins.json
     - name: Create extendedreach.mixins.json
       run: |
         cat > src/main/resources/extendedreach.mixins.json << 'EOF'
@@ -146,7 +146,6 @@ jobs:
           "minVersion": "0.8",
           "package": "com.example.extendedreach.mixin",
           "compatibilityLevel": "JAVA_8",
-          "mixins": [],
           "client": ["ClientPlayerInteractionManagerMixin"],
           "server": ["ServerPlayNetworkHandlerMixin"],
           "injectors": {
@@ -155,7 +154,6 @@ jobs:
         }
         EOF
     
-    # 9. كتابة build.gradle
     - name: Create build.gradle
       run: |
         cat > build.gradle << 'EOF'
@@ -168,7 +166,7 @@ jobs:
         targetCompatibility = JavaVersion.VERSION_1_8
 
         archivesBaseName = "extendedreach"
-        version = "1.0.0"
+        version = "1.0.1"
         group = "com.example"
 
         repositories {
@@ -210,14 +208,12 @@ jobs:
         }
         EOF
     
-    # 10. كتابة gradle.properties
     - name: Create gradle.properties
       run: |
         cat > gradle.properties << 'EOF'
         org.gradle.jvmargs=-Xmx2G
         EOF
     
-    # 11. كتابة settings.gradle
     - name: Create settings.gradle
       run: |
         cat > settings.gradle << 'EOF'
@@ -234,7 +230,6 @@ jobs:
         rootProject.name = 'extendedreach'
         EOF
     
-    # 12. كتابة .gitignore
     - name: Create .gitignore
       run: |
         cat > .gitignore << 'EOF'
@@ -247,30 +242,25 @@ jobs:
         run/
         EOF
     
-    # 13. إنشاء Gradle Wrapper
     - name: Create Gradle Wrapper files
       run: gradle wrapper --gradle-version 6.9
     
-    # 14. إعطاء صلاحيات لـ gradlew
     - name: Grant execute permission
       run: chmod +x gradlew
     
-    # 15. Commit الملفات الجديدة
     - name: Commit project files
       run: |
         git config user.name "GitHub Actions Bot"
         git config user.email "actions@github.com"
         git add .
-        git diff --staged --quiet || git commit -m "Auto-generated Minecraft mod project files"
+        git diff --staged --quiet || git commit -m "Auto-generated Minecraft mod project files v1.0.1 - Fixed server-side reach"
         git push
     
-    # 16. بناء المود
     - name: Build mod
       run: ./gradlew build
     
-    # 17. رفع المود كـ artifact
     - name: Upload Mod JAR
       uses: actions/upload-artifact@v4
       with:
-        name: extended-reach-mod-v1.0.0
+        name: extended-reach-mod-v1.0.1-FIXED
         path: build/libs/*.jar
