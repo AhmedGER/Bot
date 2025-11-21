@@ -162,6 +162,7 @@ jobs:
             }
         }
         EOF  
+    - name: Create
       run: |
         cat > src/main/java/com/example/extendedreach/mixin/ServerPlayNetworkHandlerMixin.java << 'EOF'
         package com.example.extendedreach.mixin;
