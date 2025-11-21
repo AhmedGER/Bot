@@ -114,20 +114,15 @@ jobs:
             
             @Shadow @Final private MinecraftClient client;
             
-            // تعديل مسافة الـ raytrace للكيانات لتكون نفس مسافة البلوكات!
-            // المسافة الأصلية للبلوكات: 4.5
-            // المسافة الجديدة: 4.5 + EXTRA_REACH
             @ModifyVariable(method = "updateTargetedEntity", at = @At("STORE"), ordinal = 0)
             private double modifyReachDistance(double original) {
                 PlayerEntity player = this.client.player;
                 if (player != null && ExtendedReachMod.hasExtendedReach(player.getMainHandStack().getItem())) {
-                    // نفس المسافة بتاعت البلوكات!
                     return 4.5 + ExtendedReachMod.EXTRA_REACH;
                 }
                 return original;
             }
             
-            // تعديل المسافة المربعة
             @ModifyVariable(method = "updateTargetedEntity", at = @At("STORE"), ordinal = 1)
             private double modifyReachDistanceSquared(double original) {
                 PlayerEntity player = this.client.player;
@@ -167,8 +162,7 @@ jobs:
             }
         }
         EOF  
-    -name: someting
-      run:|
+      run: |
         cat > src/main/java/com/example/extendedreach/mixin/ServerPlayNetworkHandlerMixin.java << 'EOF'
         package com.example.extendedreach.mixin;
 
@@ -356,7 +350,7 @@ jobs:
       run: ./gradlew clean build --no-daemon
     
     - name: Upload Mod JAR
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: extended-reach-wooden-sword-15blocks-v1.2.0
         path: build/libs/*.jar
