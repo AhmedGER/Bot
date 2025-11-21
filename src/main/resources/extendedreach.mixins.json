@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.example.extendedreach.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": ["ClientPlayerInteractionManagerMixin"],
+  "server": ["ServerPlayNetworkHandlerMixin"],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
