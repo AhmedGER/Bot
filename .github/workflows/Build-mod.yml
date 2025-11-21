@@ -252,15 +252,18 @@ jobs:
       run: |
         git config user.name "GitHub Actions Bot"
         git config user.email "actions@github.com"
-        git add .
+        git add -A
         git diff --staged --quiet || git commit -m "Auto-generated Minecraft mod project files v1.0.1 - Fixed server-side reach"
         git push
     
+    - name: Clean build directory
+      run: rm -rf build/ .gradle/
+    
     - name: Build mod
-      run: ./gradlew build
+      run: ./gradlew clean build --no-daemon
     
     - name: Upload Mod JAR
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: extended-reach-mod-v1.0.1-FIXED
         path: build/libs/*.jar
