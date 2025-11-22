@@ -40,9 +40,11 @@ jobs:
         import net.fabricmc.api.ClientModInitializer;
         public class BridgingMod implements ClientModInitializer {
             public static final String MOD_ID = "bridging";
+            public static int tickDelay = 0;
+            public static boolean lastPlaced = false;
             @Override
             public void onInitializeClient() {
-                System.out.println("[Fast Bridging] Hold SNEAK to fast bridge!");
+                System.out.println("[Smart Bridging] Hold RIGHT CLICK to bridge!");
             }
         }
         EOF
@@ -52,6 +54,8 @@ jobs:
       run: |
         cat << 'EOF' > src/main/java/com/example/bridging/mixin/ClientPlayerEntityMixin.java
         package com.example.bridging.mixin;
+        import com.example.bridging.BridgingMod;
+        import net.minecraft.block.BlockState;
         import net.minecraft.client.MinecraftClient;
         import net.minecraft.client.network.ClientPlayerEntity;
         import net.minecraft.item.BlockItem;
@@ -72,14 +76,33 @@ jobs:
                 ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
                 MinecraftClient client = MinecraftClient.getInstance();
                 if (client.world == null || client.options == null) return;
-                if (!client.options.keySneak.isPressed()) return;
+                if (!client.options.keyUse.isPressed()) {
+                    BridgingMod.tickDelay = 0;
+                    BridgingMod.lastPlaced = false;
+                    return;
+                }
                 ItemStack mainHand = player.getMainHandStack();
                 if (!(mainHand.getItem() instanceof BlockItem)) return;
+                if (BridgingMod.tickDelay > 0) {
+                    BridgingMod.tickDelay--;
+                    return;
+                }
                 BlockPos belowPos = player.getBlockPos().down();
-                Vec3d hitVec = Vec3d.ofCenter(belowPos).add(0, 0.5, 0);
+                BlockState belowState = client.world.getBlockState(belowPos);
+                if (!belowState.isAir() && BridgingMod.lastPlaced) {
+                    return;
+                }
+                Vec3d playerPos = player.getPos();
+                Vec3d blockCenter = Vec3d.ofCenter(belowPos);
+                double distance = playerPos.distanceTo(blockCenter);
+                if (distance > 5.5) return;
+                Vec3d hitVec = blockCenter.add(0, 0.5, 0);
                 BlockHitResult hitResult = new BlockHitResult(hitVec, Direction.UP, belowPos, false);
                 if (client.interactionManager != null) {
                     client.interactionManager.interactBlock(player, client.world, Hand.MAIN_HAND, hitResult);
+                    BridgingMod.lastPlaced = true;
+                    int baseDelay = player.isFalling() ? 0 : 1;
+                    BridgingMod.tickDelay = baseDelay + (int)(Math.random() * 2);
                 }
             }
         }
@@ -92,9 +115,9 @@ jobs:
         {
           "schemaVersion": 1,
           "id": "bridging",
-          "version": "1.0.0",
-          "name": "Fast Bridging",
-          "description": "Hold SNEAK to fast bridge",
+          "version": "1.2.0",
+          "name": "Smart Fast Bridging",
+          "description": "Hold RIGHT CLICK - Fast but smart bridging",
           "authors": ["AutoBuilder"],
           "license": "MIT",
           "environment": "client",
@@ -135,7 +158,7 @@ jobs:
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
         archivesBaseName = "bridging-mod"
-        version = "1.0.0"
+        version = "1.2.0"
         group = "com.example"
         repositories {
             maven { url 'https://maven.fabricmc.net/' }
@@ -202,5 +225,5 @@ jobs:
     - name: Upload Mod JAR
       uses: actions/upload-artifact@v4
       with:
-        name: fast-bridging-SHIFT-v1.0.0
+        name: smart-bridging-FAST-RIGHT-CLICK-v1.2.0
         path: build/libs/*.jar
