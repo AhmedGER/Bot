@@ -1,0 +1,339 @@
+# .github/workflows/build-mod.yml
+name: Build Minecraft Mod from Scratch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-and-build:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.PAT }}
+    
+    - name: Set up JDK 8
+      uses: actions/setup-java@v3
+      with:
+        java-version: '8'
+        distribution: 'temurin'
+    
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: 6.9
+    
+    - name: Clean everything first
+      run: |
+        rm -rf src/
+        rm -rf build/
+        rm -rf .gradle/
+        rm -rf gradle/
+        rm -f build.gradle
+        rm -f gradle.properties
+        rm -f settings.gradle
+        rm -f gradlew*
+    
+    - name: Create project structure
+      run: |
+        mkdir -p src/main/java/com/example/extendedreach/mixin
+        mkdir -p src/main/resources
+        mkdir -p gradle/wrapper
+    
+    - name: Create ExtendedReachMod.java
+      run: |
+        cat > src/main/java/com/example/extendedreach/ExtendedReachMod.java << 'ENDOFFILE'
+        package com.example.extendedreach;
+
+        import net.fabricmc.api.ModInitializer;
+        import net.minecraft.item.Item;
+        import net.minecraft.item.Items;
+
+        public class ExtendedReachMod implements ModInitializer {
+            public static final String MOD_ID = "extendedreach";
+            public static final double EXTRA_REACH = 10.5;
+            
+            public static boolean hasExtendedReach(Item item) {
+                return item == Items.WOODEN_SWORD;
+            }
+            
+            @Override
+            public void onInitialize() {
+                System.out.println("[Extended Reach] Mod loaded!");
+                System.out.println("[Extended Reach] Wooden Sword: 15 blocks reach!");
+            }
+        }
+        ENDOFFILE
+    
+    - name: Create ClientPlayerInteractionManagerMixin.java
+      run: |
+        cat > src/main/java/com/example/extendedreach/mixin/ClientPlayerInteractionManagerMixin.java << 'ENDOFFILE'
+        package com.example.extendedreach.mixin;
+
+        import com.example.extendedreach.ExtendedReachMod;
+        import net.minecraft.client.network.ClientPlayerEntity;
+        import net.minecraft.client.network.ClientPlayerInteractionManager;
+        import org.spongepowered.asm.mixin.Mixin;
+        import org.spongepowered.asm.mixin.Shadow;
+        import org.spongepowered.asm.mixin.injection.At;
+        import org.spongepowered.asm.mixin.injection.Inject;
+        import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+        @Mixin(ClientPlayerInteractionManager.class)
+        public class ClientPlayerInteractionManagerMixin {
+            
+            @Shadow private net.minecraft.client.MinecraftClient client;
+            
+            @Inject(method = "getReachDistance", at = @At("RETURN"), cancellable = true)
+            private void extendReachDistance(CallbackInfoReturnable<Float> cir) {
+                ClientPlayerEntity player = this.client.player;
+                if (player != null && ExtendedReachMod.hasExtendedReach(player.getMainHandStack().getItem())) {
+                    float originalReach = cir.getReturnValue();
+                    cir.setReturnValue((float)(originalReach + ExtendedReachMod.EXTRA_REACH));
+                }
+            }
+        }
+        ENDOFFILE
+    
+    - name: Create GameRendererMixin.java
+      run: |
+        cat > src/main/java/com/example/extendedreach/mixin/GameRendererMixin.java << 'ENDOFFILE'
+        package com.example.extendedreach.mixin;
+
+        import com.example.extendedreach.ExtendedReachMod;
+        import net.minecraft.client.MinecraftClient;
+        import net.minecraft.client.render.GameRenderer;
+        import net.minecraft.entity.player.PlayerEntity;
+        import org.spongepowered.asm.mixin.Final;
+        import org.spongepowered.asm.mixin.Mixin;
+        import org.spongepowered.asm.mixin.Shadow;
+        import org.spongepowered.asm.mixin.injection.At;
+        import org.spongepowered.asm.mixin.injection.ModifyVariable;
+
+        @Mixin(GameRenderer.class)
+        public class GameRendererMixin {
+            
+            @Shadow @Final private MinecraftClient client;
+            
+            @ModifyVariable(method = "updateTargetedEntity", at = @At("STORE"), ordinal = 0)
+            private double modifyReachDistance(double original) {
+                PlayerEntity player = this.client.player;
+                if (player != null && ExtendedReachMod.hasExtendedReach(player.getMainHandStack().getItem())) {
+                    return 4.5 + ExtendedReachMod.EXTRA_REACH;
+                }
+                return original;
+            }
+            
+            @ModifyVariable(method = "updateTargetedEntity", at = @At("STORE"), ordinal = 1)
+            private double modifyReachDistanceSquared(double original) {
+                PlayerEntity player = this.client.player;
+                if (player != null && ExtendedReachMod.hasExtendedReach(player.getMainHandStack().getItem())) {
+                    double newReach = 4.5 + ExtendedReachMod.EXTRA_REACH;
+                    return newReach * newReach;
+                }
+                return original;
+            }
+        }
+        ENDOFFILE
+    
+    - name: Create ServerPlayNetworkHandlerMixin.java
+      run: |
+        cat > src/main/java/com/example/extendedreach/mixin/ServerPlayNetworkHandlerMixin.java << 'ENDOFFILE'
+        package com.example.extendedreach.mixin;
+
+        import com.example.extendedreach.ExtendedReachMod;
+        import net.minecraft.item.ItemStack;
+        import net.minecraft.server.network.ServerPlayNetworkHandler;
+        import net.minecraft.server.network.ServerPlayerEntity;
+        import org.spongepowered.asm.mixin.Mixin;
+        import org.spongepowered.asm.mixin.Shadow;
+        import org.spongepowered.asm.mixin.injection.Constant;
+        import org.spongepowered.asm.mixin.injection.ModifyConstant;
+
+        @Mixin(ServerPlayNetworkHandler.class)
+        public class ServerPlayNetworkHandlerMixin {
+            
+            @Shadow public ServerPlayerEntity player;
+            
+            @ModifyConstant(method = "onPlayerInteractBlock", constant = @Constant(doubleValue = 36.0), require = 0)
+            private double extendBlockReach(double original) {
+                ItemStack stack = this.player.getMainHandStack();
+                if (ExtendedReachMod.hasExtendedReach(stack.getItem())) {
+                    double newReach = 6.0 + ExtendedReachMod.EXTRA_REACH;
+                    return newReach * newReach;
+                }
+                return original;
+            }
+            
+            @ModifyConstant(method = "onPlayerInteractEntity", constant = @Constant(doubleValue = 36.0), require = 0)
+            private double extendEntityReach(double original) {
+                ItemStack stack = this.player.getMainHandStack();
+                if (ExtendedReachMod.hasExtendedReach(stack.getItem())) {
+                    double newReach = 6.0 + ExtendedReachMod.EXTRA_REACH;
+                    return newReach * newReach;
+                }
+                return original;
+            }
+            
+            @ModifyConstant(method = "onPlayerInteractEntity", constant = @Constant(doubleValue = 9.0), require = 0)
+            private double extendAttackReach(double original) {
+                ItemStack stack = this.player.getMainHandStack();
+                if (ExtendedReachMod.hasExtendedReach(stack.getItem())) {
+                    double newReach = 3.0 + ExtendedReachMod.EXTRA_REACH;
+                    return newReach * newReach;
+                }
+                return original;
+            }
+        }
+        ENDOFFILE
+    
+    - name: Create fabric.mod.json
+      run: |
+        cat > src/main/resources/fabric.mod.json << 'ENDOFFILE'
+        {
+          "schemaVersion": 1,
+          "id": "extendedreach",
+          "version": "1.2.0",
+          "name": "Extended Reach",
+          "description": "Wooden Sword with 15 blocks reach",
+          "authors": ["AutoBuilder"],
+          "license": "MIT",
+          "environment": "*",
+          "entrypoints": {
+            "main": ["com.example.extendedreach.ExtendedReachMod"]
+          },
+          "mixins": ["extendedreach.mixins.json"],
+          "depends": {
+            "fabricloader": ">=0.11.0",
+            "fabric": "*",
+            "minecraft": "1.16.5"
+          }
+        }
+        ENDOFFILE
+    
+    - name: Create extendedreach.mixins.json
+      run: |
+        cat > src/main/resources/extendedreach.mixins.json << 'ENDOFFILE'
+        {
+          "required": true,
+          "minVersion": "0.8",
+          "package": "com.example.extendedreach.mixin",
+          "compatibilityLevel": "JAVA_8",
+          "client": [
+            "ClientPlayerInteractionManagerMixin",
+            "GameRendererMixin"
+          ],
+          "server": ["ServerPlayNetworkHandlerMixin"],
+          "injectors": {
+            "defaultRequire": 1
+          }
+        }
+        ENDOFFILE
+    
+    - name: Create build.gradle
+      run: |
+        cat > build.gradle << 'ENDOFFILE'
+        plugins {
+            id 'fabric-loom' version '0.7-SNAPSHOT'
+            id 'maven-publish'
+        }
+
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+
+        archivesBaseName = "extendedreach"
+        version = "1.2.0"
+        group = "com.example"
+
+        repositories {
+            maven { url 'https://maven.fabricmc.net/' }
+            maven {
+                url 'https://www.cursemaven.com'
+                content {
+                    includeGroup "curse.maven"
+                }
+            }
+        }
+
+        dependencies {
+            minecraft "com.mojang:minecraft:1.16.5"
+            mappings "net.fabricmc:yarn:1.16.5+build.10:v2"
+            modImplementation "net.fabricmc:fabric-loader:0.11.3"
+            modImplementation "curse.maven:fabric-api-306612:3516413"
+        }
+
+        processResources {
+            inputs.property "version", project.version
+            filesMatching("fabric.mod.json") {
+                expand "version": project.version
+            }
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            it.options.encoding = "UTF-8"
+        }
+
+        java {
+            withSourcesJar()
+        }
+
+        jar {
+            from("LICENSE") {
+                rename { "${it}_${project.archivesBaseName}"}
+            }
+        }
+        ENDOFFILE
+    
+    - name: Create gradle.properties
+      run: |
+        cat > gradle.properties << 'ENDOFFILE'
+        org.gradle.jvmargs=-Xmx2G
+        ENDOFFILE
+    
+    - name: Create settings.gradle
+      run: |
+        cat > settings.gradle << 'ENDOFFILE'
+        pluginManagement {
+            repositories {
+                maven {
+                    name = 'Fabric'
+                    url = 'https://maven.fabricmc.net/'
+                }
+                gradlePluginPortal()
+            }
+        }
+        
+        rootProject.name = 'extendedreach'
+        ENDOFFILE
+    
+    - name: Create .gitignore
+      run: |
+        cat > .gitignore << 'ENDOFFILE'
+        .gradle/
+        build/
+        out/
+        .idea/
+        *.iml
+        .vscode/
+        run/
+        ENDOFFILE
+    
+    - name: Create Gradle Wrapper files
+      run: gradle wrapper --gradle-version 6.9
+    
+    - name: Grant execute permission
+      run: chmod +x gradlew
+    
+    - name: Build mod (NO COMMIT - Direct build)
+      run: ./gradlew clean build --no-daemon
+    
+    - name: Upload Mod JAR
+      uses: actions/upload-artifact@v4
+      with:
+        name: extended-reach-wooden-sword-15blocks-v1.2.0
+        path: build/libs/*.jar
