@@ -51,26 +51,14 @@ jobs:
         package com.example.bridging;
 
         import net.fabricmc.api.ClientModInitializer;
-        import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-        import net.minecraft.client.option.KeyBinding;
-        import net.minecraft.client.util.InputUtil;
-        import org.lwjgl.glfw.GLFW;
 
         public class BridgingMod implements ClientModInitializer {
             
             public static final String MOD_ID = "bridging";
-            public static KeyBinding fastBridgeKey;
             
             @Override
             public void onInitializeClient() {
-                fastBridgeKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                    "key.bridging.fastbridge",
-                    InputUtil.Type.KEYSYM,
-                    GLFW.GLFW_KEY_LEFT_ALT,
-                    "category.bridging"
-                ));
-                
-                System.out.println("[Bridging Mod] Loaded! Hold ALT to fast bridge!");
+                System.out.println("[Fast Bridging] Loaded! Hold SNEAK (Shift) to fast bridge!");
             }
         }
         ENDOFFILE
@@ -80,7 +68,6 @@ jobs:
         cat > src/main/java/com/example/bridging/mixin/ClientPlayerEntityMixin.java << 'ENDOFFILE'
         package com.example.bridging.mixin;
 
-        import com.example.bridging.BridgingMod;
         import net.minecraft.client.MinecraftClient;
         import net.minecraft.client.network.ClientPlayerEntity;
         import net.minecraft.item.BlockItem;
@@ -103,7 +90,11 @@ jobs:
                 ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
                 MinecraftClient client = MinecraftClient.getInstance();
                 
-                if (client.world == null || !BridgingMod.fastBridgeKey.isPressed()) {
+                if (client.world == null || client.options == null) {
+                    return;
+                }
+                
+                if (!client.options.keySneak.isPressed()) {
                     return;
                 }
                 
@@ -113,7 +104,6 @@ jobs:
                 }
                 
                 BlockPos belowPos = player.getBlockPos().down();
-                
                 Vec3d hitVec = Vec3d.ofCenter(belowPos).add(0, 0.5, 0);
                 BlockHitResult hitResult = new BlockHitResult(
                     hitVec,
@@ -273,5 +263,5 @@ jobs:
     - name: Upload Mod JAR
       uses: actions/upload-artifact@v4
       with:
-        name: fast-bridging-mod-ALT-key-v1.0.0
+        name: fast-bridging-mod-SHIFT-key-v1.0.0
         path: build/libs/*.jar
