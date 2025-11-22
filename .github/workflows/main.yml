@@ -51,7 +51,25 @@ jobs:
         package com.example.bridging;
 
         import net.fabricmc.api.ClientModInitializer;
-        import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+
+        public class BridgingMod implements ClientModInitializer {
+            
+            public static final String MOD_ID = "bridging";
+            public static boolean enabled = true;
+            
+            @Override
+            public void onInitializeClient() {
+                System.out.println("[Bridging Mod] Loaded! Walk backwards to auto-place blocks!");
+            }
+        }
+        ENDOFFILE
+    
+    - name: Create ClientPlayerEntityMixin.java
+      run: |
+        cat > src/main/java/com/example/bridging/mixin/ClientPlayerEntityMixin.java << 'ENDOFFILE'
+        package com.example.bridging.mixin;
+
+        import com.example.bridging.BridgingMod;
         import net.minecraft.block.BlockState;
         import net.minecraft.client.MinecraftClient;
         import net.minecraft.client.network.ClientPlayerEntity;
@@ -62,24 +80,36 @@ jobs:
         import net.minecraft.util.math.BlockPos;
         import net.minecraft.util.math.Direction;
         import net.minecraft.util.math.Vec3d;
+        import org.spongepowered.asm.mixin.Mixin;
+        import org.spongepowered.asm.mixin.injection.At;
+        import org.spongepowered.asm.mixin.injection.Inject;
+        import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-        public class BridgingMod implements ClientModInitializer {
+        @Mixin(ClientPlayerEntity.class)
+        public class ClientPlayerEntityMixin {
             
-            public static final String MOD_ID = "bridging";
-            private static boolean wasPressingBack = false;
+            private boolean wasPressingBack = false;
+            private int tickCounter = 0;
             
-            @Override
-            public void onInitializeClient() {
-                System.out.println("[Bridging Mod] Loaded! Walk backwards to auto-place blocks!");
+            @Inject(method = "tick", at = @At("HEAD"))
+            private void onTick(CallbackInfo ci) {
+                if (!BridgingMod.enabled) {
+                    return;
+                }
                 
-                ClientTickEvents.END_CLIENT_TICK.register(client -> {
-                    if (client.player != null && client.world != null) {
-                        handleBridging(client, client.player);
-                    }
-                });
-            }
-            
-            private void handleBridging(MinecraftClient client, ClientPlayerEntity player) {
+                tickCounter++;
+                if (tickCounter < 2) {
+                    return;
+                }
+                tickCounter = 0;
+                
+                ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
+                MinecraftClient client = MinecraftClient.getInstance();
+                
+                if (client.options == null || client.world == null) {
+                    return;
+                }
+                
                 boolean pressingBack = client.options.keyBack.isPressed();
                 
                 if (!pressingBack) {
@@ -126,6 +156,21 @@ jobs:
         }
         ENDOFFILE
     
+    - name: Create bridging.mixins.json
+      run: |
+        cat > src/main/resources/bridging.mixins.json << 'ENDOFFILE'
+        {
+          "required": true,
+          "minVersion": "0.8",
+          "package": "com.example.bridging.mixin",
+          "compatibilityLevel": "JAVA_8",
+          "client": ["ClientPlayerEntityMixin"],
+          "injectors": {
+            "defaultRequire": 1
+          }
+        }
+        ENDOFFILE
+    
     - name: Create fabric.mod.json
       run: |
         cat > src/main/resources/fabric.mod.json << 'ENDOFFILE'
@@ -141,9 +186,9 @@ jobs:
           "entrypoints": {
             "client": ["com.example.bridging.BridgingMod"]
           },
+          "mixins": ["bridging.mixins.json"],
           "depends": {
             "fabricloader": ">=0.11.0",
-            "fabric": "*",
             "minecraft": "1.16.5"
           }
         }
@@ -178,7 +223,6 @@ jobs:
             minecraft "com.mojang:minecraft:1.16.5"
             mappings "net.fabricmc:yarn:1.16.5+build.10:v2"
             modImplementation "net.fabricmc:fabric-loader:0.11.3"
-            modImplementation "curse.maven:fabric-api-306612:3516413"
         }
 
         processResources {
