@@ -51,15 +51,26 @@ jobs:
         package com.example.bridging;
 
         import net.fabricmc.api.ClientModInitializer;
+        import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+        import net.minecraft.client.option.KeyBinding;
+        import net.minecraft.client.util.InputUtil;
+        import org.lwjgl.glfw.GLFW;
 
         public class BridgingMod implements ClientModInitializer {
             
             public static final String MOD_ID = "bridging";
-            public static boolean enabled = true;
+            public static KeyBinding fastBridgeKey;
             
             @Override
             public void onInitializeClient() {
-                System.out.println("[Bridging Mod] Loaded! Walk backwards to auto-place blocks!");
+                fastBridgeKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                    "key.bridging.fastbridge",
+                    InputUtil.Type.KEYSYM,
+                    GLFW.GLFW_KEY_LEFT_ALT,
+                    "category.bridging"
+                ));
+                
+                System.out.println("[Bridging Mod] Loaded! Hold ALT to fast bridge!");
             }
         }
         ENDOFFILE
@@ -70,7 +81,6 @@ jobs:
         package com.example.bridging.mixin;
 
         import com.example.bridging.BridgingMod;
-        import net.minecraft.block.BlockState;
         import net.minecraft.client.MinecraftClient;
         import net.minecraft.client.network.ClientPlayerEntity;
         import net.minecraft.item.BlockItem;
@@ -88,32 +98,12 @@ jobs:
         @Mixin(ClientPlayerEntity.class)
         public class ClientPlayerEntityMixin {
             
-            private boolean wasPressingBack = false;
-            private int tickCounter = 0;
-            
             @Inject(method = "tick", at = @At("HEAD"))
             private void onTick(CallbackInfo ci) {
-                if (!BridgingMod.enabled) {
-                    return;
-                }
-                
-                tickCounter++;
-                if (tickCounter < 2) {
-                    return;
-                }
-                tickCounter = 0;
-                
                 ClientPlayerEntity player = (ClientPlayerEntity)(Object)this;
                 MinecraftClient client = MinecraftClient.getInstance();
                 
-                if (client.options == null || client.world == null) {
-                    return;
-                }
-                
-                boolean pressingBack = client.options.keyBack.isPressed();
-                
-                if (!pressingBack) {
-                    wasPressingBack = false;
+                if (client.world == null || !BridgingMod.fastBridgeKey.isPressed()) {
                     return;
                 }
                 
@@ -123,16 +113,6 @@ jobs:
                 }
                 
                 BlockPos belowPos = player.getBlockPos().down();
-                BlockState belowState = client.world.getBlockState(belowPos);
-                
-                if (!belowState.isAir()) {
-                    wasPressingBack = true;
-                    return;
-                }
-                
-                if (wasPressingBack) {
-                    return;
-                }
                 
                 Vec3d hitVec = Vec3d.ofCenter(belowPos).add(0, 0.5, 0);
                 BlockHitResult hitResult = new BlockHitResult(
@@ -150,8 +130,6 @@ jobs:
                         hitResult
                     );
                 }
-                
-                wasPressingBack = true;
             }
         }
         ENDOFFILE
@@ -178,8 +156,8 @@ jobs:
           "schemaVersion": 1,
           "id": "bridging",
           "version": "1.0.0",
-          "name": "Bridging Mod",
-          "description": "Auto-place blocks below you when walking backwards",
+          "name": "Fast Bridging Mod",
+          "description": "Hold ALT to place blocks super fast below you",
           "authors": ["AutoBuilder"],
           "license": "MIT",
           "environment": "client",
@@ -189,6 +167,7 @@ jobs:
           "mixins": ["bridging.mixins.json"],
           "depends": {
             "fabricloader": ">=0.11.0",
+            "fabric": "*",
             "minecraft": "1.16.5"
           }
         }
@@ -223,6 +202,7 @@ jobs:
             minecraft "com.mojang:minecraft:1.16.5"
             mappings "net.fabricmc:yarn:1.16.5+build.10:v2"
             modImplementation "net.fabricmc:fabric-loader:0.11.3"
+            modImplementation "curse.maven:fabric-api-306612:3516413"
         }
 
         processResources {
@@ -293,5 +273,5 @@ jobs:
     - name: Upload Mod JAR
       uses: actions/upload-artifact@v4
       with:
-        name: bridging-mod-v1.0.0
+        name: fast-bridging-mod-ALT-key-v1.0.0
         path: build/libs/*.jar
