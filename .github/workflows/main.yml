@@ -25,7 +25,9 @@ jobs:
     
     - name: Clean everything
       run: |
-        rm -rf src/ build/ .gradle/ gradle/ *.gradle *.properties gradlew*
+        rm -rf src/ build/ .gradle/ gradle/ *.gradle *.properties gradlew* .gitignore
+        find . -name "*.java" -delete
+        find . -name "*.json" -delete
     
     - name: Create directories
       run: |
